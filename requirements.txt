@@ -1,13 +1,6 @@
-# Streamlit UI
 streamlit>=1.28.0,<2.0
-
-# LangChain (use latest compatible version)
-langchain>=0.1.340,<0.2.0
-
-# Groq client
+langchain>=0.1.331,<0.2.0
 langchain-groq>=0.0.26
-
-# Other dependencies
 python-dotenv>=1.0.0
 rich>=14.0.0
 markdown-it-py>=4.0.0
