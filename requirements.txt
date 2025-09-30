@@ -1,11 +1,15 @@
-# Streamlit for the web app
-streamlit==1.28.0
+# Streamlit UI
+streamlit>=1.28.0,<2.0
 
-# LangChain core library
-langchain==0.1.331
+# LangChain (use latest compatible version)
+langchain>=0.1.340,<0.2.0
 
-# Groq integration for LangChain
-langchain-groq==0.0.11
+# Groq client
+langchain-groq>=0.0.26
 
-# For loading environment variables locally
-python-dotenv==1.0.1
+# Other dependencies
+python-dotenv>=1.0.0
+rich>=14.0.0
+markdown-it-py>=4.0.0
+pygments>=2.19.2
+mdurl>=0.1.2
