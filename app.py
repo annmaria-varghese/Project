@@ -62,6 +62,7 @@ body, .stApp {
     border: none;
     cursor: pointer;
     transition: transform 0.2s ease-in-out;
+    margin: 5px;
 }
 
 .big-button button:hover {
@@ -71,8 +72,7 @@ body, .stApp {
 .generate-btn { background-color: #a1c181; color: #3e2f1c; }
 .surprise-btn { background-color: #f5deb3; color: #3e2f1c; }
 .quiz-btn { background-color: #c2d4c2; color: #3e2f1c; }
-.export-btn { background-color: #8fbc8f; color: #3e2f1c; position: absolute; top: 20px; right: 20px; width: 130px; height: 50px; font-size: 16px; font-weight: 700; }
-
+.export-btn { background-color: #8fbc8f; color: #3e2f1c; position: fixed; top: 20px; right: 20px; width: 130px; height: 50px; font-size: 16px; font-weight: 700; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -182,12 +182,17 @@ if 'quiz_questions' not in st.session_state: st.session_state['quiz_questions'] 
 if 'user_answers' not in st.session_state: st.session_state['user_answers'] = []
 if 'quiz_score' not in st.session_state: st.session_state['quiz_score'] = 0
 
+# ------------------- Anchors for scrolling -------------------
+st.markdown('<div id="summary_anchor"></div>', unsafe_allow_html=True)
+st.markdown('<div id="quiz_anchor"></div>', unsafe_allow_html=True)
+
 # ------------------- Layout -------------------
 st.markdown('<div class="title">QuickThink</div>', unsafe_allow_html=True)
 
+# Buttons Row
 col1, col2, col3 = st.columns([1,1,1])
 with col1:
-    if st.button("Generate", key="gen", help="Generate summary", args=None):
+    if st.button("Generate", key="gen"):
         if st.session_state.get("keyword_input"):
             summary = get_summary(st.session_state["keyword_input"])
             if summary:
@@ -196,6 +201,8 @@ with col1:
                 st.session_state['takeaways_shown'] = False
                 st.session_state['facts_shown'] = False
                 st.session_state['quiz_started'] = False
+                # scroll to summary
+                components.html("<script>location.href='#summary_anchor';</script>", height=0)
 with col2:
     if st.button("Surprise Me", key="surp"):
         title, summary = get_random_summary()
@@ -205,6 +212,7 @@ with col2:
             st.session_state['takeaways_shown'] = False
             st.session_state['facts_shown'] = False
             st.session_state['quiz_started'] = False
+            components.html("<script>location.href='#summary_anchor';</script>", height=0)
 with col3:
     if st.button("Quiz Me", key="quiz"):
         if st.session_state['last_summary']:
@@ -212,52 +220,9 @@ with col3:
             st.session_state['user_answers'] = [""]*len(st.session_state['quiz_questions'])
             st.session_state['quiz_started'] = True
             st.session_state['quiz_score'] = 0
+            components.html("<script>location.href='#quiz_anchor';</script>", height=0)
 
 # ------------------- Search Bar -------------------
 keyword = st.text_input("Enter a topic:", key="keyword_input")
 
-# ------------------- Export Button -------------------
-if st.session_state['last_summary']:
-    doc_bytes = make_docx(st.session_state['last_title'], st.session_state['last_summary'],
-                           extract_takeaways(st.session_state['last_summary']), extract_facts(st.session_state['last_summary']))
-    st.markdown('<button class="export-btn" onclick="window.location.href=\'data:application/octet-stream;base64,{}\'">Export</button>'.format(base64.b64encode(doc_bytes).decode()), unsafe_allow_html=True)
-
-# ------------------- Display Summary -------------------
-if st.session_state['last_summary']:
-    st.markdown('<div class="card"><h3>Summary</h3></div>', unsafe_allow_html=True)
-    st.write(st.session_state['last_summary'])
-
-    # Takeaways toggle
-    if st.button("Show Takeaways"):
-        st.session_state['takeaways_shown'] = not st.session_state['takeaways_shown']
-    if st.session_state['takeaways_shown']:
-        takeaways = extract_takeaways(st.session_state['last_summary'])
-        for t in takeaways:
-            st.markdown(f'<div class="fact">{t}</div>', unsafe_allow_html=True)
-
-    # Facts toggle
-    if st.button("Show Interesting Facts"):
-        st.session_state['facts_shown'] = not st.session_state['facts_shown']
-    if st.session_state['facts_shown']:
-        facts = extract_facts(st.session_state['last_summary'])
-        for f in facts:
-            st.markdown(f'<div class="fact">{f}</div>', unsafe_allow_html=True)
-
-# ------------------- Quiz Display -------------------
-if st.session_state['quiz_started'] and st.session_state['quiz_questions']:
-    st.markdown('<div class="card"><h3>Quiz Me</h3></div>', unsafe_allow_html=True)
-    for idx, q in enumerate(st.session_state['quiz_questions']):
-        st.markdown(f"**Q{idx+1}:** {q['question']}")
-        st.session_state['user_answers'][idx] = st.radio("Select answer:", q['options'], key=f"q{idx}", index=q['options'].index(st.session_state['user_answers'][idx]) if st.session_state['user_answers'][idx] in q['options'] else 0)
-    if st.button("Submit Quiz"):
-        score = 0
-        for idx, q in enumerate(st.session_state['quiz_questions']):
-            if st.session_state['user_answers'][idx] == q['answer']:
-                score +=1
-        st.session_state['quiz_score'] = score
-        for idx,q in enumerate(st.session_state['quiz_questions']):
-            if st.session_state['user_answers'][idx] == q['answer']:
-                st.success(f"Q{idx+1}: Correct ✅")
-            else:
-                st.error(f"Q{idx+1}: Wrong ❌ — {q['explanation']}")
-        st.markdown(f"**Your Total Score: {st.session_state['quiz_score']} / {len(st.session_state['quiz_questions'])}**")
+# -------------------
