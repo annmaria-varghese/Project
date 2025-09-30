@@ -1,20 +1,37 @@
-import gradio as gr
-from main import conversation_chain  # import your RAG chain from main.py
+import streamlit as st
+from langchain_groq import ChatGroq
+from langchain.prompts import ChatPromptTemplate
+from dotenv import load_dotenv
+import os
 
-# Track conversation history
-chat_history = []
+# Load environment variables from .env
+load_dotenv()
 
-def chat_with_rag(query, history):
-    if not query.strip():
-        return history, history
-    response = conversation_chain.invoke({"question": query, "chat_history": history})
-    history.append((query, response["answer"]))
-    return history, history
+# Get Groq API key from environment (.env or Streamlit Secrets)
+groq_api_key = os.getenv("GROQ_API_KEY")
 
-with gr.Blocks() as demo:
-    chatbot = gr.Chatbot()
-    msg = gr.Textbox(placeholder="Ask me anything!")
-    msg.submit(chat_with_rag, inputs=[msg, chatbot], outputs=[chatbot, chatbot])
+# Streamlit app title
+st.title("🌍 Topic Explainer (LangChain + Groq)")
 
-# Opens browser and provides public URL
-demo.launch(share=True)
+# Show error if API key is missing
+if not groq_api_key:
+    st.error("⚠️ GROQ_API_KEY not found! Please set it in your .env file or Streamlit Secrets.")
+else:
+    # Initialize LLM with supported model
+    llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0.7)
+
+    # Prompt template
+    prompt = ChatPromptTemplate.from_template(
+        "Give me a short summary (3 sentences) about {topic}, "
+        "then list 3 fun facts about it."
+    )
+
+    # Streamlit input
+    topic = st.text_input("Enter a topic:")
+
+    # Generate button
+    if st.button("Generate") and topic.strip():
+        chain = prompt | llm
+        result = chain.invoke({"topic": topic})
+        st.subheader("Result")
+        st.write(result.content)
