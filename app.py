@@ -5,27 +5,36 @@ import random
 import requests
 from io import BytesIO
 from docx import Document
+from fpdf import FPDF
 import base64
 
 # ------------------- App Setup -------------------
 st.set_page_config(page_title="QuickThink", layout="wide")
 
-# ------------------- Dark Brown + Olive Green CSS -------------------
+# ------------------- CSS -------------------
 st.markdown("""
 <style>
-.stApp { background-color: #3b2f2f; color: #f2f0e6; font-family: "Segoe UI", sans-serif; }
-.title { text-align:center; font-size:48px; font-weight:700; color:#a3b18a !important; margin-bottom:20px;}
-.card { background-color: #4b3b3b; padding:20px; border-radius:12px; border-left:6px solid #a3b18a; margin-bottom:20px;}
-.card h3 { color:#a3b18a !important; margin-bottom:10px;}
-.fact { padding:10px 14px; margin:8px 0; background:#5a4545; border-left:4px solid #a3b18a; border-radius:6px; font-size:15px; color:#f2f0e6;}
-.stButton>button { background-color:#a3b18a; color:#3b2f2f; border-radius:8px; padding:15px 25px; font-size:18px; font-weight:bold; }
-.stButton>button:hover { background-color:#8fa66a; transform:translateY(-2px); }
-.stTextInput>div>div>input { background-color:#5a4545; color:#f2f0e6; border-radius:6px; padding:10px; border:1px solid #8fa66a;}
+/* App background and font */
+.stApp {background-color: #3e2f2f; color: #f0f0e6; font-family: "Segoe UI", sans-serif;}
+
+/* Title */
+.title {text-align: center; font-size: 50px; font-weight: 700; color: #a8b56f !important; margin-bottom: 20px; letter-spacing: -1px;}
+
+/* Cards */
+.card {background-color: #4e3e3e; padding: 20px; border-radius: 12px; margin-bottom: 18px; border-left: 6px solid #a8b56f; box-shadow: 0 6px 18px rgba(0,0,0,0.3);}
+.card h3 {color: #a8b56f !important; margin-bottom: 10px;}
+
+/* Facts and takeaways */
+.fact {padding: 10px 14px; margin: 8px 0; background: #5e4e4e; border-left: 4px solid #a8b56f; border-radius: 6px; font-size: 15px; color: #f0f0e6;}
+
+/* Buttons */
+.big-button button {background-color: #a8b56f; color: #3e2f2f; font-size: 18px; font-weight: 700; padding: 14px 28px; border-radius: 10px; margin: 5px; border: none; transition: all 0.2s;}
+.big-button button:hover {background-color: #c1d27b; transform: scale(1.05);}
+
+/* Input box */
+.stTextInput>div>div>input {background-color: #5e4e4e; color: #f0f0e6; border-radius: 6px; padding: 10px; border: 1px solid #a8b56f;}
 </style>
 """, unsafe_allow_html=True)
-
-# ------------------- Title -------------------
-st.markdown('<div class="title">QuickThink</div>', unsafe_allow_html=True)
 
 # ------------------- Wikipedia & spaCy -------------------
 nlp = spacy.load("en_core_web_sm")
@@ -33,41 +42,51 @@ wiki = wikipediaapi.Wikipedia(language='en', user_agent='QuickThinkApp/1.0')
 
 # ------------------- Utilities -------------------
 def get_summary(keyword, max_sentences=10):
-    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{keyword}"
+    """Try online, fallback offline"""
+    # Online
     try:
+        url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{keyword}"
         res = requests.get(url, timeout=6)
         if res.status_code == 200:
             text = res.json().get("extract", "")
-            doc = nlp(text)
-            sents = [s.text.strip() for s in doc.sents]
-            return " ".join(sents[:max_sentences]) + (" ..." if len(sents)>max_sentences else "")
+            sents = [s.text.strip() for s in nlp(text).sents]
+            return " ".join(sents[:max_sentences]) + (" ..." if len(sents) > max_sentences else "")
     except:
-        return None
+        pass
+    # Offline fallback
+    page = wiki.page(keyword)
+    if page.exists():
+        text = page.text
+        sents = [s.text.strip() for s in nlp(text).sents if len(s.text.strip())>20]
+        return " ".join(sents[:max_sentences]) + (" ..." if len(sents) > max_sentences else "")
+    return None
 
 def get_random_summary(max_sentences=10):
-    url = "https://en.wikipedia.org/api/rest_v1/page/random/summary"
     try:
+        url = "https://en.wikipedia.org/api/rest_v1/page/random/summary"
         res = requests.get(url, timeout=6)
         if res.status_code == 200:
             data = res.json()
             title = data.get("title","Random Topic")
             text = data.get("extract","")
-            doc = nlp(text)
-            sents = [s.text.strip() for s in doc.sents]
+            sents = [s.text.strip() for s in nlp(text).sents]
             summary = " ".join(sents[:max_sentences]) + (" ..." if len(sents)>max_sentences else "")
             return title, summary
     except:
-        return None, None
+        pass
+    return None, None
 
 def extract_takeaways(text, n=3):
     doc = nlp(text)
-    sents = [s.text.strip() for s in doc.sents if len(s.text.strip())>20]
-    return sents[:n]
+    sentences = [s.text.strip() for s in doc.sents if len(s.text.strip())>20]
+    if not sentences: return ["No takeaways available."]
+    return random.sample(sentences, min(n,len(sentences)))
 
 def extract_facts(text, n=4):
     doc = nlp(text)
-    sents = [s.text.strip() for s in doc.sents if len(s.text.strip())>30]
-    return random.sample(sents, min(n,len(sents))) if sents else ["No interesting facts available."]
+    sentences = [s.text.strip() for s in doc.sents if len(s.text.strip())>25]
+    if not sentences: return ["No facts available."]
+    return random.sample(sentences, min(n,len(sentences)))
 
 def generate_quiz_mcq(text, n_questions=5):
     doc = nlp(text)
@@ -78,134 +97,129 @@ def generate_quiz_mcq(text, n_questions=5):
     for _ in range(n_questions):
         if not candidates: break
         answer = random.choice(candidates)
-        sentence = next((s.text.strip() for s in doc.sents if answer in s.text), None)
-        if not sentence:
-            candidates.remove(answer)
-            continue
-        options = [answer] + random.sample([w for w in candidates if w != answer], min(3,len(candidates)-1))
+        sentence = None
+        for s in doc.sents:
+            if answer in s.text: sentence=s.text.strip(); break
+        if not sentence: candidates.remove(answer); continue
+        options = [answer]
+        other_opts = [w for w in candidates if w!=answer]
+        random.shuffle(other_opts)
+        options.extend(other_opts[:3])
         while len(options)<4: options.append("None of these")
         random.shuffle(options)
-        questions.append({"question":sentence.replace(answer,"_____"),"answer":answer,"options":options,"explanation":f"The correct answer is '{answer}'."})
+        questions.append({
+            "question": sentence.replace(answer,"_____"),
+            "answer": answer,
+            "options": options,
+            "explanation": f"The correct answer is '{answer}'."
+        })
         candidates.remove(answer)
     return questions
 
 def make_docx(title, summary, takeaways, facts):
     doc = Document()
-    doc.add_heading(title,0)
+    doc.add_heading(title,level=1)
     doc.add_paragraph(summary)
-    doc.add_heading("Takeaways",1)
-    for t in takeaways: doc.add_paragraph(t, style='List Bullet')
-    doc.add_heading("Interesting Facts",1)
-    for f in facts: doc.add_paragraph(f, style='List Number')
+    doc.add_heading("Takeaways",level=2)
+    for t in takeaways: doc.add_paragraph(t,style='List Bullet')
+    doc.add_heading("Interesting Facts",level=2)
+    for f in facts: doc.add_paragraph(f,style='List Number')
     bio = BytesIO()
     doc.save(bio)
     bio.seek(0)
     return bio.getvalue()
 
-def download_link_bytes(data:bytes, filename:str,label:str):
-    b64 = base64.b64encode(data).decode()
-    href = f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{label}</a>'
+def download_docx(title, summary, takeaways, facts):
+    doc_bytes = make_docx(title,summary,takeaways,facts)
+    b64 = base64.b64encode(doc_bytes).decode()
+    href = f'<a href="data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,{b64}" download="{title}.docx">Export</a>'
     return href
 
-# ------------------- Session State -------------------
-if 'last_title' not in st.session_state: st.session_state['last_title'] = ""
-if 'last_summary' not in st.session_state: st.session_state['last_summary'] = ""
-if 'takeaways_shown' not in st.session_state: st.session_state['takeaways_shown'] = False
-if 'facts_shown' not in st.session_state: st.session_state['facts_shown'] = False
-if 'quiz_started' not in st.session_state: st.session_state['quiz_started'] = False
-if 'quiz_score' not in st.session_state: st.session_state['quiz_score'] = 0
+# ------------------- State Initialization -------------------
+if 'summary' not in st.session_state: st.session_state['summary'] = ""
+if 'title' not in st.session_state: st.session_state['title'] = ""
+if 'takeaways' not in st.session_state: st.session_state['takeaways'] = []
+if 'facts' not in st.session_state: st.session_state['facts'] = []
 if 'quiz_questions' not in st.session_state: st.session_state['quiz_questions'] = []
-if 'user_answers' not in st.session_state: st.session_state['user_answers'] = []
+if 'quiz_answers' not in st.session_state: st.session_state['quiz_answers'] = []
+if 'quiz_started' not in st.session_state: st.session_state['quiz_started'] = False
 
-# ------------------- Top Buttons -------------------
-col1,col2,col3,col4 = st.columns([2,2,2,1])
+# ------------------- Header -------------------
+st.markdown('<div class="title">QuickThink</div>', unsafe_allow_html=True)
+
+# ------------------- Search Bar & Buttons -------------------
+keyword = st.text_input("Enter a keyword or topic", placeholder="e.g., Artificial Intelligence")
+
+col1, col2, col3, col4 = st.columns([1,1,1,1])
 with col1:
-    if st.button("Generate", key="gen_btn"): st.session_state['action']="generate"
+    generate_clicked = st.button("Generate")
 with col2:
-    if st.button("Surprise Me", key="surp_btn"): st.session_state['action']="surprise"
+    surprise_clicked = st.button("Surprise Me")
 with col3:
-    if st.button("Quiz Me", key="quiz_btn"): st.session_state['action']="quiz"
+    quiz_clicked = st.button("Quiz Me")
 with col4:
-    if st.session_state['last_summary']:
-        doc_bytes = make_docx(st.session_state['last_title'], st.session_state['last_summary'], extract_takeaways(st.session_state['last_summary']), extract_facts(st.session_state['last_summary']))
-        st.markdown(download_link_bytes(doc_bytes,f"{st.session_state['last_title']}.docx","Export"), unsafe_allow_html=True)
+    if st.session_state['summary']:
+        st.markdown(download_docx(st.session_state['title'], st.session_state['summary'], st.session_state['takeaways'], st.session_state['facts']), unsafe_allow_html=True)
 
-# ------------------- Actions -------------------
-action = st.session_state.get('action',"")
-if action=="generate":
-    keyword = st.text_input("Enter Keyword", "")
-    if keyword.strip():
-        summary = get_summary(keyword)
-        if summary:
-            st.session_state['last_title'] = keyword
-            st.session_state['last_summary'] = summary
-            st.session_state['takeaways_shown'] = False
-            st.session_state['facts_shown'] = False
-        else: st.error("Couldn't fetch content.")
-elif action=="surprise":
-    title, summary = get_random_summary()
+# ------------------- Generate / Surprise -------------------
+if generate_clicked and keyword.strip():
+    summary = get_summary(keyword, max_sentences=10)
     if summary:
-        st.session_state['last_title'] = title
-        st.session_state['last_summary'] = summary
-        st.session_state['takeaways_shown'] = False
-        st.session_state['facts_shown'] = False
+        st.session_state['summary'] = summary
+        st.session_state['title'] = keyword
+        st.session_state['takeaways'] = extract_takeaways(summary,3)
+        st.session_state['facts'] = extract_facts(summary,4)
+        st.session_state['quiz_started'] = False
+    else:
+        st.error("Could not fetch summary for this topic.")
+elif surprise_clicked:
+    title, summary = get_random_summary(max_sentences=10)
+    if summary:
+        st.session_state['summary'] = summary
+        st.session_state['title'] = title
+        st.session_state['takeaways'] = extract_takeaways(summary,3)
+        st.session_state['facts'] = extract_facts(summary,4)
+        st.session_state['quiz_started'] = False
     else:
         st.error("Couldn't fetch random topic.")
-elif action=="quiz":
-    if st.session_state['last_summary']:
-        st.session_state['quiz_started'] = True
-        st.session_state['quiz_questions'] = generate_quiz_mcq(st.session_state['last_summary'],5)
-        st.session_state['user_answers'] = [""]*len(st.session_state['quiz_questions'])
-        st.session_state['quiz_score'] = 0
-    else:
-        st.warning("Generate a topic first to start Quiz!")
 
-# ------------------- Display Content -------------------
-if st.session_state['last_summary']:
-    st.markdown(f"### Summary: {st.session_state['last_title']}")
-    st.write(st.session_state['last_summary'])
+# ------------------- Display Summary -------------------
+if st.session_state['summary']:
+    st.markdown(f'<div class="card"><h3>Summary - {st.session_state["title"]}</h3></div>', unsafe_allow_html=True)
+    st.write(st.session_state['summary'])
 
-    if st.button("Show Takeaways"):
-        st.session_state['takeaways_shown'] = not st.session_state['takeaways_shown']
-    if st.session_state['takeaways_shown']:
-        for t in extract_takeaways(st.session_state['last_summary']):
+    # Takeaways collapsible
+    with st.expander("Takeaways"):
+        for t in st.session_state['takeaways']:
             st.markdown(f'<div class="fact">{t}</div>', unsafe_allow_html=True)
-
-    if st.button("Show Interesting Facts"):
-        st.session_state['facts_shown'] = not st.session_state['facts_shown']
-    if st.session_state['facts_shown']:
-        for f in extract_facts(st.session_state['last_summary']):
+    # Interesting Facts collapsible
+    with st.expander("Interesting Facts"):
+        for f in st.session_state['facts']:
             st.markdown(f'<div class="fact">{f}</div>', unsafe_allow_html=True)
 
-# ------------------- Quiz Section -------------------
+# ------------------- Quiz -------------------
+if quiz_clicked and st.session_state['summary']:
+    st.session_state['quiz_started'] = True
+    st.session_state['quiz_questions'] = generate_quiz_mcq(st.session_state['summary'],5)
+    st.session_state['quiz_answers'] = [""]*len(st.session_state['quiz_questions'])
+
 if st.session_state['quiz_started']:
     st.markdown('<div class="card"><h3>Quiz Me</h3></div>', unsafe_allow_html=True)
     for idx,q in enumerate(st.session_state['quiz_questions']):
         st.markdown(f"**Q{idx+1}:** {q['question']}")
-        st.session_state['user_answers'][idx] = st.radio("Select answer:", q['options'], key=f"q{idx}", index=q['options'].index(st.session_state['user_answers'][idx]) if st.session_state['user_answers'][idx] in q['options'] else 0)
-    if st.button("Submit Quiz"):
-        score=0
-        for idx,q in enumerate(st.session_state['quiz_questions']):
-            if st.session_state['user_answers'][idx] = st.radio(
-            "Select answer:",
-            q['options'],
-            key=f"q{idx}",
-            index=q['options'].index(st.session_state['user_answers'][idx])
-            if st.session_state['user_answers'][idx] in q['options'] else 0
-        )
-    
-    # Submit button
+        default_index = 0
+        if st.session_state['quiz_answers'][idx] in q['options']:
+            default_index = q['options'].index(st.session_state['quiz_answers'][idx])
+        st.session_state['quiz_answers'][idx] = st.radio("Select answer:", q['options'], index=default_index, key=f"q{idx}")
+
     if st.button("Submit Quiz"):
         score = 0
-        # Check answers
-        for idx, q in enumerate(st.session_state['quiz_questions']):
-            if st.session_state['user_answers'][idx] == q['answer']:
-                score += 1
-                st.success(f"Q{idx+1}: Correct! ✅")
+        for idx,q in enumerate(st.session_state['quiz_questions']):
+            if st.session_state['quiz_answers'][idx]==q['answer']:
+                score+=1
+        st.markdown(f"**Your Score: {score} / {len(st.session_state['quiz_questions'])}**")
+        for idx,q in enumerate(st.session_state['quiz_questions']):
+            if st.session_state['quiz_answers'][idx]==q['answer']:
+                st.success(f"Q{idx+1}: Correct ✅")
             else:
                 st.error(f"Q{idx+1}: Wrong ❌ — {q['explanation']}")
-        st.session_state['quiz_score'] = score
-        st.markdown(f"**Your Total Score: {st.session_state['quiz_score']} / {len(st.session_state['quiz_questions'])}**")
-        # Reset quiz after submission if you want:
-        st.session_state['quiz_started'] = False
-
