@@ -3,7 +3,6 @@ import wikipediaapi
 import spacy
 import random
 import requests
-from gtts import gTTS
 from io import BytesIO
 from docx import Document
 from fpdf import FPDF
@@ -417,3 +416,4 @@ else:
             st.markdown(href_pdf, unsafe_allow_html=True)
 
     st.markdown('<div class="card"><h3>Explore More</h3><p>Try "Surprise Me" for random topics, or save interesting topics for later.</p></div>', unsafe_allow_html=True)
+
