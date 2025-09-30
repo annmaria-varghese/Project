@@ -58,31 +58,31 @@ def get_offline_summary(keyword, max_sentences=10):
     return None
 
 def get_random_summary(max_sentences=10):
-    """Reliable random: pick random keyword from list"""
+    """Random topics list for reliability"""
     topics = ["Python (programming language)", "Artificial intelligence", "SpaceX", 
               "Shakespeare", "Blockchain", "Quantum computing", "Electric car"]
     keyword = random.choice(topics)
     summary = get_online_summary(keyword) or get_offline_summary(keyword)
     return keyword, summary
 
-def extract_key_takeaways(text, n=3):
+def extract_takeways(text, n=3):
     doc = nlp(text)
-    sents = [sent.text.strip() for sent in doc.sents if len(sent.text.strip()) > 20]
+    sents = [s.text.strip() for s in doc.sents if len(s.text.strip()) > 20]
     return sents[:n] if sents else []
 
-def extract_fun_facts(text, num=4):
+def extract_facts(text, num=4):
     doc = nlp(text)
     sents = [s.text.strip() for s in doc.sents if len(s.text.strip()) > 40]
     return random.sample(sents, min(num, len(sents))) if sents else []
 
-def make_docx(title, essay, takeaways, facts):
+def make_docx(title, essay, takeways, facts):
     if Document is None:
         return None
     doc = Document()
     doc.add_heading(title, level=1)
     doc.add_paragraph(essay)
     doc.add_heading("Takeways", level=2)
-    for t in takeaways:
+    for t in takeways:
         doc.add_paragraph(t, style='List Bullet')
     doc.add_heading("Interesting Facts", level=2)
     for f in facts:
@@ -96,50 +96,48 @@ def download_button(data: bytes, filename: str, label: str):
     b64 = base64.b64encode(data).decode()
     return f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{label}</a>'
 
-# ------------------ Quiz ------------------
-def generate_quiz(text, n_questions=5):
+# ------------------ Quiz MCQ ------------------
+def generate_quiz_mcq(text, n_questions=5):
     doc = nlp(text)
-    ents = list({ent.text for ent in doc.ents})
-    if not ents:
-        return []
+    entities = list({ent.text for ent in doc.ents if len(ent.text) > 2})
     questions = []
-    for i in range(min(n_questions, len(ents))):
-        ent = random.choice(ents)
+    for i in range(min(n_questions, len(entities))):
+        answer = random.choice(entities)
         sentence = None
         for s in doc.sents:
-            if ent in s.text:
+            if answer in s.text:
                 sentence = s.text.strip()
                 break
-        if sentence:
-            question = sentence.replace(ent, "_____")
-            explanation = f"The correct answer is '{ent}'."
-            questions.append({"question": question, "answer": ent, "explanation": explanation})
+        if not sentence:
+            continue
+        # make options
+        options = [answer]
+        other_ents = [e for e in entities if e != answer]
+        random.shuffle(other_ents)
+        options.extend(other_ents[:3])
+        random.shuffle(options)
+        questions.append({"question": sentence.replace(answer, "_____"), 
+                          "answer": answer, 
+                          "options": options,
+                          "explanation": f"The correct answer is '{answer}'."})
     return questions
-
-# ------------------ Sidebar ------------------
-with st.sidebar:
-    st.markdown('<div class="card"><h3>QuickThink Features</h3>'
-                '<ul>'
-                '<li>Concise Summaries</li>'
-                '<li>Interactive Takeways & Facts</li>'
-                '<li>Surprise Me random topics</li>'
-                '<li>Quiz Me (5 questions)</li>'
-                '</ul></div>', unsafe_allow_html=True)
 
 # ------------------ Main Input ------------------
 col1, col2 = st.columns([2,1])
 with col1:
     keyword = st.text_input("Enter a keyword", placeholder="e.g., Artificial Intelligence")
-    generate_clicked = st.button("Generate", key="btn_generate")
-    surprise_clicked = st.button("Surprise Me", key="btn_surprise")
-    quiz_clicked = st.button("Quiz Me", key="btn_quiz")
+    generate_clicked = st.button("Generate")
+    surprise_clicked = st.button("Surprise Me")
+    quiz_clicked = st.button("Quiz Me")
 
 # ------------------ Session State ------------------
 if "essay" not in st.session_state:
     st.session_state.essay = None
     st.session_state.title = None
+if "quiz_results" not in st.session_state:
+    st.session_state.quiz_results = []
 
-# ------------------ Logic ------------------
+# ------------------ Fetch Content ------------------
 if generate_clicked and keyword:
     essay = get_online_summary(keyword) or get_offline_summary(keyword)
     if essay:
@@ -160,8 +158,8 @@ if surprise_clicked:
 if st.session_state.essay:
     essay = st.session_state.essay
     title = st.session_state.title
-    takeways = extract_key_takeaways(essay)
-    facts = extract_fun_facts(essay)
+    takeways = extract_takeways(essay)
+    facts = extract_facts(essay)
 
     st.markdown(f'<div class="card"><h3>{title} - Summary</h3></div>', unsafe_allow_html=True)
     st.write(essay)
@@ -174,23 +172,28 @@ if st.session_state.essay:
         for f in facts:
             st.markdown(f'<div class="fact">• {f}</div>', unsafe_allow_html=True)
 
+    # Export DOCX
     if Document:
         doc_bytes = make_docx(title, essay, takeways, facts)
         if doc_bytes:
             st.markdown(download_button(doc_bytes, f"{title}.docx", "Export"), unsafe_allow_html=True)
 
+    # Quiz MCQ
     if quiz_clicked:
         st.markdown('<div class="card"><h3>Quiz</h3></div>', unsafe_allow_html=True)
-        quiz = generate_quiz(essay)
-        score = 0
-        for idx, q in enumerate(quiz):
-            st.markdown(f"**Q{idx+1}:** {q['question']}")
-            ans = st.text_input(f"Your answer for Q{idx+1}:", key=f"quiz_{idx}")
-            check = st.button(f"Check Q{idx+1}", key=f"btn_{idx}")
-            if check:
-                if ans.strip().lower() == q['answer'].lower():
-                    st.success("Correct!")
-                    score += 1
-                else:
-                    st.error(f"Wrong! {q['explanation']}")
-        st.markdown(f"**Total Score: {score} / {len(quiz)}**")
+        quiz = generate_quiz_mcq(essay)
+        if not quiz:
+            st.info("Not enough content for quiz questions.")
+        else:
+            score = 0
+            for idx, q in enumerate(quiz):
+                st.markdown(f"**Q{idx+1}:** {q['question']}")
+                choice = st.radio(f"Choose the answer:", q['options'], key=f"quiz_{idx}")
+                check = st.button(f"Check Q{idx+1}", key=f"btn_{idx}")
+                if check:
+                    if choice == q['answer']:
+                        st.success("Correct!")
+                        score += 1
+                    else:
+                        st.error(f"Wrong! {q['explanation']}")
+            st.markdown(f"**Total Score: {score} / {len(quiz)}**")
