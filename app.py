@@ -15,22 +15,19 @@ except ImportError:
 st.set_page_config(page_title="QuickThink", layout="wide")
 
 # ------------------ CSS ------------------
-st.markdown(
-    """
-    <style>
-    .stApp { background-color: #2b2f2b; color: #f3f2ec; font-family: "Segoe UI", sans-serif; }
-    .title { text-align: center; font-size: 42px; font-weight: 700; color: #a3b18a !important; margin-bottom: 18px; }
-    .card { background-color: #f3f2ec; color: #2b2f2b; padding: 20px; border-radius: 12px; border-left: 6px solid #a3b18a; margin-bottom: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.1);}
-    .card h3 { color: #4a5d23 !important; margin-bottom: 10px; }
-    .fact { padding: 10px 14px; margin: 8px 0; background: #fefcf2; border-left: 4px solid #a3b18a; border-radius: 6px; font-size: 15px; color: #222; }
-    .stButton>button { background-color: #a3b18a; color: #2b2f2b; border-radius: 6px; padding: 8px 16px; border: none; font-weight: 600; }
-    .stButton>button:hover { background-color: #8b9c5a; transform: translateY(-2px);}
-    .stTextInput>div>div>input { background-color: #fefcf2; color: #2b2f2b; border-radius: 6px; padding: 10px; border: 1px solid #ddd; }
-    details > summary { cursor: pointer; font-weight: 600; font-size:16px; margin-bottom:5px;}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("""
+<style>
+.stApp { background-color: #2b2f2b; color: #f3f2ec; font-family: "Segoe UI", sans-serif; }
+.title { text-align: center; font-size: 42px; font-weight: 700; color: #a3b18a !important; margin-bottom: 18px; }
+.card { background-color: #f3f2ec; color: #2b2f2b; padding: 20px; border-radius: 12px; border-left: 6px solid #a3b18a; margin-bottom: 18px; box-shadow: 0 6px 20px rgba(0,0,0,0.1);}
+.card h3 { color: #4a5d23 !important; margin-bottom: 10px; }
+.fact { padding: 10px 14px; margin: 8px 0; background: #fefcf2; border-left: 4px solid #a3b18a; border-radius: 6px; font-size: 15px; color: #222; }
+.stButton>button { background-color: #a3b18a; color: #2b2f2b; border-radius: 6px; padding: 8px 16px; border: none; font-weight: 600; }
+.stButton>button:hover { background-color: #8b9c5a; transform: translateY(-2px);}
+.stTextInput>div>div>input { background-color: #fefcf2; color: #2b2f2b; border-radius: 6px; padding: 10px; border: 1px solid #ddd; }
+details > summary { cursor: pointer; font-weight: 600; font-size:16px; margin-bottom:5px;}
+</style>
+""", unsafe_allow_html=True)
 
 st.markdown('<div class="title">QuickThink</div>', unsafe_allow_html=True)
 
@@ -61,18 +58,12 @@ def get_offline_summary(keyword, max_sentences=10):
     return None
 
 def get_random_summary(max_sentences=10):
-    url = "https://en.wikipedia.org/api/rest_v1/page/random/summary"
-    try:
-        res = requests.get(url, timeout=6)
-        if res.status_code == 200:
-            data = res.json()
-            title = data.get("title", "Random Topic")
-            text = data.get("extract", "")
-            doc = nlp(text)
-            sents = [s.text.strip() for s in doc.sents]
-            return title, " ".join(sents[:max_sentences])
-    except:
-        return None, None
+    """Reliable random: pick random keyword from list"""
+    topics = ["Python (programming language)", "Artificial intelligence", "SpaceX", 
+              "Shakespeare", "Blockchain", "Quantum computing", "Electric car"]
+    keyword = random.choice(topics)
+    summary = get_online_summary(keyword) or get_offline_summary(keyword)
+    return keyword, summary
 
 def extract_key_takeaways(text, n=3):
     doc = nlp(text)
@@ -105,6 +96,26 @@ def download_button(data: bytes, filename: str, label: str):
     b64 = base64.b64encode(data).decode()
     return f'<a href="data:application/octet-stream;base64,{b64}" download="{filename}">{label}</a>'
 
+# ------------------ Quiz ------------------
+def generate_quiz(text, n_questions=5):
+    doc = nlp(text)
+    ents = list({ent.text for ent in doc.ents})
+    if not ents:
+        return []
+    questions = []
+    for i in range(min(n_questions, len(ents))):
+        ent = random.choice(ents)
+        sentence = None
+        for s in doc.sents:
+            if ent in s.text:
+                sentence = s.text.strip()
+                break
+        if sentence:
+            question = sentence.replace(ent, "_____")
+            explanation = f"The correct answer is '{ent}'."
+            questions.append({"question": question, "answer": ent, "explanation": explanation})
+    return questions
+
 # ------------------ Sidebar ------------------
 with st.sidebar:
     st.markdown('<div class="card"><h3>QuickThink Features</h3>'
@@ -112,10 +123,8 @@ with st.sidebar:
                 '<li>Concise Summaries</li>'
                 '<li>Interactive Takeways & Facts</li>'
                 '<li>Surprise Me random topics</li>'
-                '<li>One-click Export</li>'
+                '<li>Quiz Me (5 questions)</li>'
                 '</ul></div>', unsafe_allow_html=True)
-    # Feature toggles (optional for future expansion)
-    tts_enabled = st.checkbox("Listen Mode (TTS)", value=False)
 
 # ------------------ Main Input ------------------
 col1, col2 = st.columns([2,1])
@@ -123,7 +132,9 @@ with col1:
     keyword = st.text_input("Enter a keyword", placeholder="e.g., Artificial Intelligence")
     generate_clicked = st.button("Generate", key="btn_generate")
     surprise_clicked = st.button("Surprise Me", key="btn_surprise")
+    quiz_clicked = st.button("Quiz Me", key="btn_quiz")
 
+# ------------------ Session State ------------------
 if "essay" not in st.session_state:
     st.session_state.essay = None
     st.session_state.title = None
@@ -138,7 +149,7 @@ if generate_clicked and keyword:
         st.error("No summary found for this keyword.")
 
 if surprise_clicked:
-    title, essay = get_random_summary() or (None, None)
+    title, essay = get_random_summary()
     if essay:
         st.session_state.essay = essay
         st.session_state.title = title
@@ -167,3 +178,19 @@ if st.session_state.essay:
         doc_bytes = make_docx(title, essay, takeways, facts)
         if doc_bytes:
             st.markdown(download_button(doc_bytes, f"{title}.docx", "Export"), unsafe_allow_html=True)
+
+    if quiz_clicked:
+        st.markdown('<div class="card"><h3>Quiz</h3></div>', unsafe_allow_html=True)
+        quiz = generate_quiz(essay)
+        score = 0
+        for idx, q in enumerate(quiz):
+            st.markdown(f"**Q{idx+1}:** {q['question']}")
+            ans = st.text_input(f"Your answer for Q{idx+1}:", key=f"quiz_{idx}")
+            check = st.button(f"Check Q{idx+1}", key=f"btn_{idx}")
+            if check:
+                if ans.strip().lower() == q['answer'].lower():
+                    st.success("Correct!")
+                    score += 1
+                else:
+                    st.error(f"Wrong! {q['explanation']}")
+        st.markdown(f"**Total Score: {score} / {len(quiz)}**")
