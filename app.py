@@ -186,4 +186,26 @@ if st.session_state['quiz_started']:
     if st.button("Submit Quiz"):
         score=0
         for idx,q in enumerate(st.session_state['quiz_questions']):
-            if st.session_state['user_answers'][idx
+            if st.session_state['user_answers'][idx] = st.radio(
+            "Select answer:",
+            q['options'],
+            key=f"q{idx}",
+            index=q['options'].index(st.session_state['user_answers'][idx])
+            if st.session_state['user_answers'][idx] in q['options'] else 0
+        )
+    
+    # Submit button
+    if st.button("Submit Quiz"):
+        score = 0
+        # Check answers
+        for idx, q in enumerate(st.session_state['quiz_questions']):
+            if st.session_state['user_answers'][idx] == q['answer']:
+                score += 1
+                st.success(f"Q{idx+1}: Correct! ✅")
+            else:
+                st.error(f"Q{idx+1}: Wrong ❌ — {q['explanation']}")
+        st.session_state['quiz_score'] = score
+        st.markdown(f"**Your Total Score: {st.session_state['quiz_score']} / {len(st.session_state['quiz_questions'])}**")
+        # Reset quiz after submission if you want:
+        st.session_state['quiz_started'] = False
+
