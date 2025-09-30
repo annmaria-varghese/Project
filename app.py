@@ -20,7 +20,7 @@ st.markdown("""
 .big-button button {background-color: #a8b56f; color: #3e2f2f; font-size: 22px; font-weight: 700; padding: 18px 30px; border-radius: 12px; margin: 5px; border: none; transition: all 0.2s;}
 .big-button button:hover {background-color: #c1d27b; transform: scale(1.05);}
 .stTextInput>div>div>input {background-color: #5e4e4e; color: #f0f0e6; border-radius: 6px; padding: 10px; border: 1px solid #a8b56f;}
-#export-btn {position: fixed; top: 20px; right: 30px; background-color:#a8b56f; color:#3e2f2f; padding:12px 20px; border-radius:8px; font-weight:bold; font-size:16px; text-decoration:none;}
+#export-btn {position: fixed; top: 80px; right: 30px; background-color:#a8b56f; color:#3e2f2f; padding:12px 20px; border-radius:8px; font-weight:bold; font-size:16px; text-decoration:none;}
 #export-btn:hover {background-color:#c1d27b; transform: scale(1.05);}
 </style>
 """, unsafe_allow_html=True)
@@ -175,3 +175,4 @@ if st.session_state['quiz_started']:
 # ------------------- Export Button -------------------
 if st.session_state['summary']:
     st.markdown(get_export_link(st.session_state['title'], st.session_state['summary'], st.session_state['takeaways'], st.session_state['facts']), unsafe_allow_html=True)
+
